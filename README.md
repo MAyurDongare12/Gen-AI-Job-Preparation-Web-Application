@@ -89,4 +89,4 @@ Contributions, issues, and feature requests are always welcome! Feel free to che
 This project is open source and available under the [ISC License](LICENSE).
 
 ---
-*Built with ❤️ and AI.*
+Built with Me❤️
