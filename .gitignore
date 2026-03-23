@@ -1,0 +1,36 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables (Crucial to prevent exposing API keys)
+.env
+.env.local
+.env.development
+.env.production
+
+# Build output
+dist/
+build/
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# macOS / OS specific
+.DS_Store
+Thumbs.db
+
+# Any dummy or test files generated during dev
+dummy_resume.pdf
+models.json
+test_ai.js
+test_pdf.js
+test_upload.js
+last_error.log
