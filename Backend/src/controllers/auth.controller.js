@@ -47,8 +47,8 @@ async function registerUserController(req, res) {
 
     res.cookie('token', token, {
         httpOnly: true,
-        secure: false, // Set to true if using HTTPS
-        sameSite: 'lax',
+        secure: true, // Required for cross-site cookies
+        sameSite: 'none', // Required for cross-site cookies
         maxAge: 24 * 60 * 60 * 1000 // 1 day
     }) 
     res.status(201).json({
@@ -98,8 +98,8 @@ async function loginUserController(req, res) {
 
     res.cookie('token', token, {
         httpOnly: true,
-        secure: false, // Set to true if using HTTPS
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 24 * 60 * 60 * 1000 // 1 day
     }) 
         res.status(200).json({
@@ -127,7 +127,11 @@ async function logoutUserController(req, res) {
             token
         })
     }
-    res.clearCookie('token');
+    res.clearCookie('token', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none'
+    });
     res.status(200).json({
         message: "User logged out successfully"
     })
