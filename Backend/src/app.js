@@ -12,7 +12,18 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'https://genai-job-preparation-web-app.netlify.app',
+            'https://gen-ai-job-preparation-web-application.vercel.app'
+        ];
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 /* require all the routes here */

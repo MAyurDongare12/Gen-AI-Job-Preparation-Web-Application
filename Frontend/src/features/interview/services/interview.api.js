@@ -1,7 +1,9 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:3000" : "https://gen-ai-job-preparation-web-application.onrender.com"),
+    baseURL: (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+        ? "http://localhost:3000"
+        : "https://gen-ai-job-preparation-web-application.onrender.com",
     withCredentials: true,
 })
 
