@@ -69,19 +69,38 @@ export const useInterview = () => {
     }
 
     const getResumePdf = async (interviewReportId) => {
+        if (!interviewReportId) {
+            setError("Missing interview id for resume download")
+            return
+        }
+        if (loading) return // already in flight, ignore re-clicks
         setLoading(true)
-        let response = null
         try {
-            response = await generateResumePdf({ interviewReportId })
-            const url = window.URL.createObjectURL(new Blob([ response ], { type: "application/pdf" }))
+            const response = await generateResumePdf({ interviewReportId })
+            console.log("PDF Response:", response, "Type:", response.type)
+
+            // response is already a Blob from axios with responseType: 'blob'
+            if (!response || !(response instanceof Blob)) {
+                throw new Error("Response is not a valid blob")
+            }
+
+            const url = window.URL.createObjectURL(response)
             const link = document.createElement("a")
+            link.style.display = "none"
             link.href = url
-            link.setAttribute("download", `resume_${interviewReportId}.pdf`)
+            link.download = `resume_${interviewReportId}.pdf`
             document.body.appendChild(link)
             link.click()
+
+            // Clean up after browser initiates the download
+            setTimeout(() => {
+                document.body.removeChild(link)
+                window.URL.revokeObjectURL(url)
+            }, 200)
         }
         catch (error) {
-            console.log(error)
+            console.error("Failed to download resume PDF:", error)
+            setError(error.response?.data?.message || "Failed to download resume PDF")
         } finally {
             setLoading(false)
         }
@@ -93,7 +112,7 @@ export const useInterview = () => {
         } else {
             getReports()
         }
-    }, [ interviewId ])
+    }, [interviewId])
 
     return { loading, report, reports, error, generateReport, getReportById, getReports, getResumePdf, setError }
 

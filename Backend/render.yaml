@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: gen-ai-pro-backend
+    runtime: node
+    rootDir: Backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    # Use the official Render Puppeteer buildpack so Chrome is available
+    # in the container at a known path. The buildpack installs
+    # /usr/bin/google-chrome-stable which our ai.service.js reads via
+    # the PUPPETEER_EXECUTABLE_PATH env var.
+    envVars:
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/google-chrome-stable
+      - key: PUPPETEER_SKIP_DOWNLOAD
+        value: "true"
+      - key: NODE_ENV
+        value: production
+    # The buildpack must be added manually in the Render dashboard:
+    #   Dashboard -> Service -> Settings -> Build & Deploy -> Add Buildpack
+    #   URL: https://github.com/Snailedlt/puppeteer-buildpack
+    # If you'd rather use a pure-render.yaml approach (no dashboard click),
+    # see the alternative block commented out below — it uses an apt build
+    # command to install Chrome via the Dockerfile mechanism. Render's
+    # "Infrastructure as Code" doesn't yet support buildpacks in yaml, so
+    # the envVar trick + manual buildpack add is the supported path.

@@ -11,10 +11,13 @@ export const useAuth = () => {
         setLoading(true)
         try {
             const data = await login({ email, password })
-
             setUser(data.user)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            return data
         } catch (err) {
-
+            setUser(null)
+            localStorage.removeItem('user')
+            throw err
         } finally {
             setLoading(false)
         }
@@ -25,7 +28,12 @@ export const useAuth = () => {
         try {
             const data = await register({ username, email, password })
             setUser(data.user)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            return data
         } catch (err) {
+            setUser(null)
+            localStorage.removeItem('user')
+            throw err
         } finally {
             setLoading(false)
         }
@@ -33,33 +41,43 @@ export const useAuth = () => {
 
     const handleLogout = async () => {
         setLoading(true)
-        try{
-            const data = await logout()
+        try {
+            await logout()
             setUser(null)
+            localStorage.removeItem('user')
         } catch (err) {
+            console.error('Logout error:', err)
         } finally {
-            
             setLoading(false)
         }
     }
 
-     useEffect(() => {
-        const getAndSetUser = async () => {
-            try {
-                const data = await getMe()
-                if (data && data.user) {
-                    setUser(data.user)
-                } else {
+    useEffect(() => {
+        // Only check with server if user was already in localStorage
+        // This prevents the 401 errors on initial load when there's no token
+        const storedUser = localStorage.getItem('user')
+        if (storedUser && storedUser !== "undefined") {
+            const getAndSetUser = async () => {
+                try {
+                    const data = await getMe()
+                    if (data && data.user) {
+                        setUser(data.user)
+                    } else {
+                        setUser(null)
+                        localStorage.removeItem('user')
+                    }
+                } catch (err) {
+                    // Token might be invalid, clear it
                     setUser(null)
+                    localStorage.removeItem('user')
+                } finally {
+                    setLoading(false)
                 }
-            } catch (err) {
-                console.error("Failed to fetch user:", err)
-                setUser(null)
-            } finally {
-                setLoading(false)
             }
+            getAndSetUser()
+        } else {
+            setLoading(false)
         }
-        getAndSetUser()
     }, [])
 
     return { user, loading, handleLogin, handleRegister, handleLogout }

@@ -8,15 +8,26 @@ function Register() {
     const [username, setUsername] = useState("")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [confirmPassword, setConfirmPassword] = useState("")
+    const [error, setError] = useState("")
 
     const { loading, handleRegister } = useAuth()
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await handleRegister({ username, email, password })
-        navigate("/")
-        // Handle login logic here
+        setError("")
 
+        if (password !== confirmPassword) {
+            setError("Passwords do not match")
+            return
+        }
+
+        try {
+            await handleRegister({ username, email, password })
+            navigate("/")
+        } catch (err) {
+            setError(err.response?.data?.message || 'Registration failed. Please try again.')
+        }
     }
 
     if (loading) {
@@ -26,6 +37,8 @@ function Register() {
         <main>
             <div className="form-container">
                 <h1>Register</h1>
+
+                {error && <div style={{ color: 'red', marginBottom: '10px', padding: '8px', backgroundColor: '#ffeeee', borderRadius: '4px' }}>{error}</div>}
 
                 <form onSubmit={handleSubmit}>
 
@@ -48,6 +61,13 @@ function Register() {
                         <input
                             onChange={(e) => { setPassword(e.target.value) }}
                             type="password" id="password" name="password" placeholder='Enter the password' required />
+                    </div>
+
+                    <div className="input-group">
+                        <label htmlFor="confirmPassword">Confirm Password</label>
+                        <input
+                            onChange={(e) => { setConfirmPassword(e.target.value) }}
+                            type="password" id="confirmPassword" name="confirmPassword" placeholder='Confirm the password' required />
                     </div>
 
                     <button className="button primary-button">Register</button>
