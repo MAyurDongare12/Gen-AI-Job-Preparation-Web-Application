@@ -18,6 +18,14 @@ async function registerUserController(req, res) {
             })
         }
 
+        // Pre-flight: make sure env vars are set
+        if (!process.env.JWT_SECRET) {
+            console.error('JWT_SECRET is not set in environment');
+            return res.status(500).json({
+                message: "Server misconfiguration: JWT_SECRET is missing"
+            })
+        }
+
         const isUserAlredyExists = await userModel.findOne({
             $or: [
                 { username },
@@ -62,9 +70,14 @@ async function registerUserController(req, res) {
             }
         })
     } catch (error) {
-        console.error('Error in registerUserController:', error);
-        res.status(500).json({
-            message: "Failed to register user",
+        console.error('❌ Error in registerUserController:', error);
+        console.error('   Stack:', error && error.stack);
+        // Mongoose validation errors → 400, everything else → 500
+        const status = error && error.name === 'ValidationError' ? 400 : 500
+        res.status(status).json({
+            message: error && error.name === 'ValidationError'
+                ? error.message
+                : "Failed to register user",
             error: error.message
         });
     }
