@@ -26,6 +26,15 @@ async function registerUserController(req, res) {
             })
         }
 
+        // Pre-flight: database must be connected
+        const mongoose = require('mongoose')
+        if (mongoose.connection.readyState !== 1) {
+            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState)
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
+
         const isUserAlredyExists = await userModel.findOne({
             $or: [
                 { username },
@@ -92,6 +101,14 @@ async function registerUserController(req, res) {
 async function loginUserController(req, res) {
     try {
         const { email, password } = req.body;
+
+        // Pre-flight: database must be connected
+        const mongoose = require('mongoose')
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
 
         const user = await userModel.findOne({
             email

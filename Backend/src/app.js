@@ -36,7 +36,7 @@ app.use("/api/interview", interviewRouter)
 
 // Health check endpoint — useful to verify config / DB connection in production
 app.get('/health', (req, res) => {
-    const mongoose = require('mongoose')
+    const { getDbStatus } = require('./config/database')
     res.status(200).json({
         status: 'ok',
         time: new Date().toISOString(),
@@ -46,10 +46,7 @@ app.get('/health', (req, res) => {
             hasGenaiKey: !!process.env.GOOGLE_GENAI_API_KEY,
             nodeEnv: process.env.NODE_ENV || 'development',
         },
-        db: {
-            readyState: mongoose.connection.readyState, // 1 = connected
-            host: mongoose.connection.host || null,
-        },
+        db: getDbStatus(),
     })
 })
 
