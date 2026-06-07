@@ -933,174 +933,90 @@ function generateSimplePdfFromResumeData(d) {
         .replace(/\(/g, '\\(')
         .replace(/\)/g, '\\)')
 
-    const PAGE_WIDTH = 595       // A4 in points
+    const PAGE_WIDTH = 595   // A4 in points
     const PAGE_HEIGHT = 842
-    const MARGIN_X = 50
+    const MARGIN_LEFT = 50
     const MARGIN_TOP = 50
-    const MARGIN_BOTTOM = 50
-    const TEXT_WIDTH = PAGE_WIDTH - MARGIN_X * 2
+    const MAX_WIDTH = PAGE_WIDTH - MARGIN_LEFT * 2
+    const LINE_HEIGHT = 12
 
-    // Per-character widths in 1/1000 of font size for Helvetica. Used to
-    // measure text accurately so wrapping and centering work properly.
-    // Source: Adobe Type 1 Helvetica AFM metrics.
-    const charWidths = (() => {
-        const m = {
-            ' ': 278, '!': 278, '"': 355, '#': 556, '$': 556, '%': 889, '&': 667,
-            "'": 191, '(': 333, ')': 333, '*': 389, '+': 584, ',': 278, '-': 333,
-            '.': 278, '/': 278, '0': 556, '1': 556, '2': 556, '3': 556, '4': 556,
-            '5': 556, '6': 556, '7': 556, '8': 556, '9': 556, ':': 278, ';': 278,
-            '<': 584, '=': 584, '>': 584, '?': 556, '@': 1015, 'A': 667, 'B': 667,
-            'C': 722, 'D': 722, 'E': 667, 'F': 611, 'G': 778, 'H': 722, 'I': 278,
-            'J': 500, 'K': 667, 'L': 556, 'M': 833, 'N': 722, 'O': 778, 'P': 667,
-            'Q': 778, 'R': 722, 'S': 667, 'T': 611, 'U': 722, 'V': 667, 'W': 944,
-            'X': 667, 'Y': 667, 'Z': 611, '[': 278, '\\': 278, ']': 278, '^': 469,
-            '_': 556, '`': 333, 'a': 556, 'b': 556, 'c': 500, 'd': 556, 'e': 556,
-            'f': 278, 'g': 556, 'h': 556, 'i': 222, 'j': 222, 'k': 500, 'l': 222,
-            'm': 833, 'n': 556, 'o': 556, 'p': 556, 'q': 556, 'r': 333, 's': 500,
-            't': 278, 'u': 556, 'v': 500, 'w': 722, 'x': 500, 'y': 500, 'z': 500,
-            '{': 334, '|': 260, '}': 334, '~': 584,
-        }
-        return m
-    })()
+    // Build the content stream. Each "Tj" instruction draws text, "T*" moves to next line.
+    let y = PAGE_HEIGHT - MARGIN_TOP
+    const commands = []
 
-    const measure = (text, fontSize) => {
-        // Returns the width of `text` in points at the given font size.
-        let total = 0
-        for (const ch of String(text || '')) {
-            const w = charWidths[ch] || 500 // unknown chars: ~half-em
-            total += w
-        }
-        return (total / 1000) * fontSize
-    }
+    const drawLine = (text, opts = {}) => {
+        const fontSize = opts.fontSize || 10
+        const isBold = opts.bold || false
+        const align = opts.align || 'left' // 'left' | 'center'
+        const font = isBold ? 'F2' : 'F1' // F1=Helvetica, F2=Helvetica-Bold
 
-    // Wrap `text` to lines that fit in `maxWidth` at `fontSize`, returning
-    // an array of strings (each one already wrapped to its own line).
-    const wrap = (text, fontSize, maxWidth) => {
-        const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ')
-        const lines = []
+        // Wrap text to fit MAX_WIDTH (rough char count: ~5px per char at 10pt)
+        const charsPerLine = Math.floor(MAX_WIDTH / (fontSize * 0.5))
+        const words = String(text || '').split(/\s+/)
         let line = ''
+        const lines = []
         for (const w of words) {
-            const test = line ? line + ' ' + w : w
-            if (measure(test, fontSize) > maxWidth && line) {
-                lines.push(line)
+            if ((line + ' ' + w).trim().length > charsPerLine) {
+                if (line) lines.push(line)
                 line = w
             } else {
-                line = test
+                line = (line ? line + ' ' : '') + w
             }
         }
         if (line) lines.push(line)
-        return lines
-    }
 
-    // Layout state
-    let pageNumber = 1
-    const pages = [[]]   // array of content-stream command arrays, one per page
-    let y = PAGE_HEIGHT - MARGIN_TOP
-    const PAGE_BOTTOM = MARGIN_BOTTOM + 20
-
-    const newPage = () => {
-        // No explicit page break instruction needed in the content stream
-        // because we use separate content streams for each page. We do
-        // need to "go to" a new page object later via /Kids in the Pages dict.
-        pages.push([])
-        pageNumber++
-        y = PAGE_HEIGHT - MARGIN_TOP
-    }
-
-    const ensureSpace = (h) => {
-        if (y - h < PAGE_BOTTOM) newPage()
-    }
-
-    const emit = (cmd) => pages[pageNumber - 1].push(cmd)
-
-    const drawText = (text, opts = {}) => {
-        const fontSize = opts.fontSize || 10
-        const bold = opts.bold ? 'F2' : 'F1'
-        const align = opts.align || 'left' // 'left' | 'center' | 'right'
-        const indent = opts.indent || 0
-        const lineHeight = opts.lineHeight || (fontSize * 1.25)
-        const maxWidth = TEXT_WIDTH - indent
-        const lines = wrap(text, fontSize, maxWidth)
-        for (const line of lines) {
-            ensureSpace(lineHeight)
-            let x = MARGIN_X + indent
-            if (align === 'center') {
-                const w = measure(line, fontSize)
-                x = MARGIN_X + (TEXT_WIDTH - w) / 2
-            } else if (align === 'right') {
-                const w = measure(line, fontSize)
-                x = MARGIN_X + TEXT_WIDTH - w
-            }
-            emit(`BT /${bold} ${fontSize} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfString(line)}) Tj ET`)
-            y -= lineHeight
-        }
-    }
-
-    const drawSpacer = (h) => { y -= h }
-
-    const drawSectionHeader = (title) => {
-        drawSpacer(8)
-        ensureSpace(22)
-        // Bold uppercase title in blue
-        drawText(title.toUpperCase(), { fontSize: 12, bold: true })
-        // Horizontal underline rule
-        emit(`${MARGIN_X.toFixed(2)} ${(y + 3).toFixed(2)} m ${(PAGE_WIDTH - MARGIN_X).toFixed(2)} ${(y + 3).toFixed(2)} l 1 w S`)
-        y -= 6
-    }
-
-    const drawEntry = (lines) => {
-        // lines is an array of { text, bold, italic, fontSize, indent }
         for (const l of lines) {
-            if (l.text) {
-                drawText(l.text, {
-                    fontSize: l.fontSize || 10,
-                    bold: l.bold || false,
-                    italic: false,
-                    indent: l.indent || 0,
-                })
-            } else if (l.spacer) {
-                drawSpacer(l.spacer)
+            if (y < MARGIN_TOP + LINE_HEIGHT) {
+                // Out of space — silently truncate (PDF is single-page)
+                return
             }
+            let x = MARGIN_LEFT
+            if (align === 'center') {
+                x = MARGIN_LEFT + (MAX_WIDTH - l.length * fontSize * 0.5) / 2
+            }
+            commands.push(`BT /${font} ${fontSize} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfString(l)}) Tj ET`)
+            y -= LINE_HEIGHT
         }
-        drawSpacer(3)
+    }
+
+    const drawSpacer = (h = 6) => { y -= h }
+    const drawSectionHeader = (title) => {
+        drawSpacer(6)
+        drawLine(title.toUpperCase(), { fontSize: 12, bold: true })
+        y -= 2
+        // Underline
+        commands.push(`${MARGIN_LEFT} ${(y + 4).toFixed(2)} m ${(PAGE_WIDTH - MARGIN_LEFT).toFixed(2)} ${(y + 4).toFixed(2)} l S`)
+        y -= 4
     }
 
     // === Header ===
     const h = d.header || {}
-    drawText(h.name || 'Your Name', { fontSize: 24, bold: true, align: 'center' })
-    drawSpacer(2)
-    const contactParts = []
-    if (h.location) contactParts.push(h.location)
-    if (h.phone) contactParts.push(h.phone)
-    if (h.dob) contactParts.push(h.dob)
-    if (contactParts.length) drawText(contactParts.join('  •  '), { fontSize: 10, align: 'center' })
-    const contactParts2 = []
-    if (h.email) contactParts2.push(h.email)
-    if (h.linkedin) contactParts2.push(h.linkedin)
-    if (contactParts2.length) drawText(contactParts2.join('  •  '), { fontSize: 10, align: 'center' })
+    drawLine(h.name || 'Your Name', { fontSize: 22, bold: true, align: 'center' })
     drawSpacer(4)
+    const contactParts = []
+    if (h.email) contactParts.push(h.email)
+    if (h.phone) contactParts.push(h.phone)
+    if (h.location) contactParts.push(h.location)
+    if (h.linkedin) contactParts.push(h.linkedin)
+    if (contactParts.length) drawLine(contactParts.join('  |  '), { fontSize: 9, align: 'center' })
+    drawSpacer(8)
 
     // === Objective ===
     if (d.objective) {
         drawSectionHeader('Objective')
-        drawText(d.objective, { fontSize: 10 })
+        drawLine(d.objective, { fontSize: 10 })
     }
 
     // === Education ===
     if (d.education && d.education.length) {
         drawSectionHeader('Education')
         for (const e of d.education) {
-            const lines = []
-            if (e.degree) lines.push({ text: e.degree, bold: true, fontSize: 11 })
-            if (e.institution) {
-                const head = e.institution + (e.location ? ', ' + e.location : '')
-                lines.push({ text: head, bold: true, fontSize: 11 })
-            }
-            const dateScore = []
-            if (e.startDate || e.endDate) dateScore.push(e.startDate + ' – ' + (e.endDate || ''))
-            if (e.score) dateScore.push(e.score)
-            if (dateScore.length) lines.push({ text: dateScore.join(' | '), fontSize: 10 })
-            drawEntry(lines)
+            drawLine(e.degree || '', { bold: true, fontSize: 11 })
+            const instLine = (e.institution || '') + (e.location ? ', ' + e.location : '')
+            drawLine(instLine, { bold: true, fontSize: 11 })
+            const dateLine = ((e.startDate || '') + (e.startDate || e.endDate ? ' - ' : '') + (e.endDate || '')) + (e.score ? '  |  ' + e.score : '')
+            if (dateLine.trim()) drawLine(dateLine, { fontSize: 9 })
+            drawSpacer(2)
         }
     }
 
@@ -1108,18 +1024,14 @@ function generateSimplePdfFromResumeData(d) {
     if (d.workExperience && d.workExperience.length) {
         drawSectionHeader('Work Experience')
         for (const w of d.workExperience) {
-            const lines = []
-            const head = (w.role || '') +
-                (w.company ? ', ' + w.company : '') +
-                (w.location ? ', ' + w.location : '')
-            if (head.trim()) lines.push({ text: head, bold: true, fontSize: 11 })
-            if (w.startDate || w.endDate) {
-                lines.push({ text: w.startDate + ' – ' + (w.endDate || ''), fontSize: 10 })
-            }
+            const head = (w.role || '') + (w.company ? ', ' + w.company : '') + (w.location ? ', ' + w.location : '')
+            drawLine(head, { bold: true, fontSize: 11 })
+            const dateLine = ((w.startDate || '') + (w.startDate || w.endDate ? ' - ' : '') + (w.endDate || ''))
+            if (dateLine.trim()) drawLine(dateLine, { fontSize: 9 })
             for (const b of (w.bullets || [])) {
-                lines.push({ text: '• ' + b, fontSize: 10, indent: 10 })
+                drawLine('• ' + b, { fontSize: 10 })
             }
-            drawEntry(lines)
+            drawSpacer(2)
         }
     }
 
@@ -1127,109 +1039,89 @@ function generateSimplePdfFromResumeData(d) {
     if (d.projects && d.projects.length) {
         drawSectionHeader('Projects')
         for (const p of d.projects) {
-            const lines = []
-            if (p.title) lines.push({ text: p.title, bold: true, fontSize: 11 })
-            if (p.startDate || p.endDate) {
-                lines.push({ text: p.startDate + ' – ' + (p.endDate || ''), fontSize: 10 })
-            }
+            drawLine(p.title || '', { bold: true, fontSize: 11 })
+            const dateLine = ((p.startDate || '') + (p.startDate || p.endDate ? ' - ' : '') + (p.endDate || ''))
+            if (dateLine.trim()) drawLine(dateLine, { fontSize: 9 })
             for (const b of (p.bullets || [])) {
-                lines.push({ text: '• ' + b, fontSize: 10, indent: 10 })
+                drawLine('• ' + b, { fontSize: 10 })
             }
-            drawEntry(lines)
+            drawSpacer(2)
         }
     }
 
     // === Technical Skills ===
     if (d.technicalSkills && d.technicalSkills.length) {
         drawSectionHeader('Technical Skills')
-        drawText(d.technicalSkills.join(' • '), { fontSize: 10 })
+        drawLine(d.technicalSkills.join(', '), { fontSize: 10 })
     }
 
     // === Soft Skills ===
     if (d.softSkills && d.softSkills.length) {
         drawSectionHeader('Soft Skills')
-        const lines = []
-        for (let i = 0; i < d.softSkills.length; i++) {
-            lines.push({ text: '• ' + d.softSkills[i], fontSize: 10, indent: 10 })
-        }
-        drawEntry(lines)
+        drawLine(d.softSkills.join(', '), { fontSize: 10 })
     }
 
     // === Certificates ===
     if (d.certificates && d.certificates.length) {
         drawSectionHeader('Certificates')
-        drawText(d.certificates.join(' • '), { fontSize: 10 })
+        drawLine(d.certificates.join(', '), { fontSize: 10 })
     }
 
     // === Extra-Curricular ===
     if (d.extraCurricular && d.extraCurricular.length) {
         drawSectionHeader('Extra-Curricular Activities')
-        const lines = d.extraCurricular.map(x => ({ text: '• ' + x, fontSize: 10, indent: 10 }))
-        drawEntry(lines)
+        for (const x of d.extraCurricular) drawLine('• ' + x, { fontSize: 10 })
     }
 
     // === Languages & Hobbies ===
     if ((d.languages && d.languages.length) || (d.hobbies && d.hobbies.length)) {
         drawSectionHeader('Languages & Hobbies')
         if (d.languages && d.languages.length) {
-            drawText('Languages: ' + d.languages.join(', '), { fontSize: 10 })
+            drawLine('Languages: ' + d.languages.join(', '), { fontSize: 10 })
         }
         if (d.hobbies && d.hobbies.length) {
-            drawText('Hobbies: ' + d.hobbies.join(', '), { fontSize: 10 })
+            drawLine('Hobbies: ' + d.hobbies.join(', '), { fontSize: 10 })
         }
     }
 
     // === Assemble the PDF ===
-    // Build a content stream per page
-    const contentStreams = pages.map(cmds => cmds.join('\n'))
-    const streamLengths = contentStreams.map(s => Buffer.byteLength(s, 'binary'))
-
-    // Build PDF objects: catalog, pages, then one Page per content stream, plus the streams themselves
+    // Per PDF 1.4 spec, the Length value must be the exact byte count of the
+    // stream content (NOT including the "stream\n" / "\nendstream" markers).
+    // We use \n as line separator within the stream and don't add a trailing
+    // newline before "endstream" so the byte count is exact.
+    const contentStream = commands.join('\n')
+    // Build PDF objects
     const objects = []
     // 1: Catalog
     objects.push('<< /Type /Catalog /Pages 2 0 R >>')
-
-    // 2: Pages — one Kids entry per page
-    const pageRefs = []
-    for (let i = 0; i < pages.length; i++) pageRefs.push(`${3 + i * 2} 0 R`)
-    objects.push(`<< /Type /Pages /Kids [${pageRefs.join(' ')}] /Count ${pages.length} >>`)
-
-    // 3, 5, 7, ...: Page objects
-    // 4, 6, 8, ...: Content stream objects
-    const fontObjectNum = 3 + pages.length * 2   // first page content is obj 3, then alternating
-    for (let i = 0; i < pages.length; i++) {
-        const pageNum = 3 + i * 2
-        const contentNum = pageNum + 1
-        objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Contents ${contentNum} 0 R /Resources << /Font << /F1 ${fontObjectNum} 0 R /F2 ${fontObjectNum + 1} 0 R >> >> >>`)
-        // content stream object goes in next slot — but objects[] is built in order so we
-        // can't pre-declare. We add a placeholder string for the page, then fill the content
-        // stream after. Use a marker so we can swap.
-        objects.push(`__CONTENT_${i}__`)
-    }
-    // Font objects
+    // 2: Pages
+    objects.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>')
+    // 3: Page
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`)
+    // 4: Content stream
+    objects.push(`<< /Length ${Buffer.byteLength(contentStream, 'binary')} >>\nstream\n${contentStream}\nendstream`)
+    // 5: Helvetica
     objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+    // 6: Helvetica-Bold
     objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>')
-
-    // Replace placeholders with actual content streams
-    for (let i = 0; i < pages.length; i++) {
-        const len = streamLengths[i]
-        const stream = contentStreams[i]
-        objects[3 + i * 2 + 1] = `<< /Length ${len} >>\nstream\n${stream}\nendstream`
-    }
 
     // Build the raw PDF as a list of Buffers so we can track exact byte offsets.
     const chunks = []
     const push = (s) => chunks.push(Buffer.from(s, 'binary'))
     const offsets = []
 
+    // Header — 4 leading bytes ensure PDF viewers recognize the binary marker
     push('%PDF-1.4\n')
+    // Binary comment hint (so the file is treated as binary by viewers)
     push(Buffer.from([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])) // "%âãÏÓ\n"
     for (let i = 0; i < objects.length; i++) {
         offsets.push(chunks.reduce((sum, c) => sum + c.length, 0))
         push(`${i + 1} 0 obj\n${objects[i]}\nendobj\n`)
     }
     const xrefOffset = chunks.reduce((sum, c) => sum + c.length, 0)
-    // PDF 1.4 spec: each xref entry is exactly 20 bytes
+    // PDF 1.4 spec requires each xref entry to be EXACTLY 20 bytes
+    // (10-digit offset + space + 5-digit generation + space + 1-char keyword + CR + LF).
+    // The first entry is special: offset 0, generation 65535, keyword 'f'.
     let xref = `xref\r\n0 ${objects.length + 1}\r\n0000000000 65535 f \r\n`
     for (const off of offsets) {
         xref += `${String(off).padStart(10, '0')} 00000 n \r\n`
