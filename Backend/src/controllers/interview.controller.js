@@ -23,6 +23,12 @@ async function generateInterviewReportController(req, res) {
             }
         }
 
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
+
         let { selfDescription, jobDescription } = req.body
 
         // Trim and treat empty strings as missing
@@ -90,6 +96,12 @@ async function getInterviewReportByIdController(req, res) {
     try {
         const { interviewId } = req.params
 
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
+
         const interviewReport = await interviewReportModel.findOne({ _id: interviewId, user: new mongoose.Types.ObjectId(req.user.id) })
 
         if (!interviewReport) {
@@ -115,6 +127,12 @@ async function getInterviewReportByIdController(req, res) {
  */
 async function getAllInterviewReportsController(req, res) {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
+
         const interviewReports = await interviewReportModel.find({ user: new mongoose.Types.ObjectId(req.user.id) })
             .select("-resume -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan")
             .sort({ createdAt: -1 })
@@ -140,6 +158,14 @@ async function generateResumePdfController(req, res) {
     try {
         const { interviewReportId } = req.params
 
+        // Pre-flight: database must be connected
+        if (mongoose.connection.readyState !== 1) {
+            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState)
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            })
+        }
+
         const interviewReport = await interviewReportModel.findById(interviewReportId)
 
         if (!interviewReport) {
@@ -157,7 +183,12 @@ async function generateResumePdfController(req, res) {
         res.setHeader("Content-Length", pdfBuffer.length)
         res.end(pdfBuffer)
     } catch (error) {
-        console.error("Error in generateResumePdfController:", error);
+        console.error("❌ Error in generateResumePdfController:", error && error.message);
+        console.error("   Stack:", error && error.stack);
+        // Distinguish DB CastError (bad id) from real failures
+        if (error && error.name === 'CastError') {
+            return res.status(404).json({ message: "Interview report not found" })
+        }
         res.status(500).json({
             message: "Failed to generate resume PDF",
             error: error.message
