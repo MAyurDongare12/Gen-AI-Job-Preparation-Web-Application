@@ -36,7 +36,8 @@ function Register() {
     return (
         <main>
             <div className="form-container">
-                <h1>Register</h1>
+                <img src="/logo.png" alt="App Logo" style={{ width: '80px', height: '80px', display: 'block', margin: '0 auto 1rem', borderRadius: '16px', objectFit: 'cover' }} />
+                <h1 style={{ textAlign: 'center' }}>Register</h1>
 
                 {error && <div style={{ color: 'red', marginBottom: '10px', padding: '8px', backgroundColor: '#ffeeee', borderRadius: '4px' }}>{error}</div>}
 
