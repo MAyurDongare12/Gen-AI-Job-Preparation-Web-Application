@@ -26,8 +26,13 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 3rem 1.5rem;
-    gap: 2rem;
+    padding: 2rem 1rem;
+    gap: 1.5rem;
+
+    @media (min-width: 768px) {
+        padding: 3rem 1.5rem;
+        gap: 2rem;
+    }
 }
 
 // ── Page Header ──────────────────────────────────────────────────────────────
@@ -35,10 +40,14 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     text-align: center;
 
     h1 {
-        font-size: 2.25rem;
+        font-size: 1.75rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
         color: $text-primary;
+
+        @media (min-width: 768px) {
+            font-size: 2.25rem;
+        }
     }
 
     p {
@@ -65,28 +74,47 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
 
     &__body {
         display: flex;
+        flex-direction: column;
         min-height: 520px;
+
+        @media (min-width: 768px) {
+            flex-direction: row;
+        }
     }
 
     &__footer {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: space-between;
         padding: 1rem 1.5rem;
         border-top: 1px solid $border-color;
+        gap: 1rem;
+
+        @media (min-width: 768px) {
+            flex-direction: row;
+            gap: 0;
+        }
 
         .footer-info {
             font-size: 0.8rem;
             color: $text-muted;
+            text-align: center;
         }
     }
 }
 
 // ── Panels ────────────────────────────────────────────────────────────────────
 .panel-divider {
-    width: 1px;
+    width: 100%;
+    height: 1px;
     background-color: $border-color;
     flex-shrink: 0;
+
+    @media (min-width: 768px) {
+        width: 1px;
+        height: auto;
+    }
 }
 
 .panel {
@@ -119,6 +147,7 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     &__textarea {
         flex: 1;
         width: 100%;
+        min-height: 150px;
         background-color: $bg-input;
         border: 1px solid $border-color;
         border-radius: 0.5rem;
