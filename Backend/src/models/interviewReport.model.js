@@ -120,7 +120,7 @@ const interviewReportSchema = new mongoose.Schema ({
     preparationPlan : [preparationPlanSchema],
     user:{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "users"
+        ref: "user"
     },
     title:{
         type: String,

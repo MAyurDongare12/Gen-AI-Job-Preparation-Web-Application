@@ -1,7 +1,8 @@
 const pdfParse = require('pdf-parse');
 const mongoose = require('mongoose');
-const { generateInterviewReport, generateResumePdf } = require('../services/ai.service');
-const interviewReportModel = require("../models/interviewReport.model")
+const { generateInterviewReport, generateResumePdf, getStructuredResumeData, calculateAtsScore } = require('../services/ai.service');
+const interviewReportModel = require("../models/interviewReport.model");
+const userModel = require("../models/user.model");
 
 /**
  * @description Controller to generate interview report based on user self description, resume and job description.
@@ -156,38 +157,56 @@ async function getAllInterviewReportsController(req, res) {
  */
 async function generateResumePdfController(req, res) {
     try {
-        const { interviewReportId } = req.params
+        const { interviewReportId } = req.params;
 
         // Pre-flight: database must be connected
         if (mongoose.connection.readyState !== 1) {
-            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState)
+            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState);
             return res.status(503).json({
                 message: "Database is temporarily unavailable. Please try again in a moment."
-            })
+            });
         }
 
-        const interviewReport = await interviewReportModel.findById(interviewReportId)
+        const userId = req.user?.id || req.user?._id;
+        const interviewReport = await interviewReportModel.findOne({
+            _id: interviewReportId,
+            user: new mongoose.Types.ObjectId(userId)
+        });
 
         if (!interviewReport) {
             return res.status(404).json({
-                message: "Interview report not found"
-            })
+                message: "Interview report not found or unauthorized"
+            });
         }
 
-        const { resume, jobDescription, selfDescription } = interviewReport
+        const { resume, jobDescription, selfDescription } = interviewReport;
 
-        const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription })
+        const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription });
 
-        res.contentType("application/pdf")
-        res.setHeader("Content-Disposition", `attachment; filename=resume_${interviewReportId}.pdf`)
-        res.setHeader("Content-Length", pdfBuffer.length)
-        res.end(pdfBuffer)
+        let candidateName = '';
+        if (userId) {
+            const userDoc = await userModel.findById(userId).select('username');
+            if (userDoc && userDoc.username) {
+                candidateName = userDoc.username.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
+            }
+        }
+        const rawTitle = interviewReport.title || 'Software_Engineer';
+        const cleanTitle = rawTitle.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').slice(0, 35) || interviewReportId;
+        const namePrefix = candidateName ? `${candidateName}_` : '';
+        const filename = `Resume_${namePrefix}${cleanTitle}.pdf`;
+        const disposition = req.query?.view === 'inline' ? 'inline' : 'attachment';
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `${disposition}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+        res.setHeader("Content-Length", pdfBuffer.length);
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        res.end(pdfBuffer);
     } catch (error) {
         console.error("❌ Error in generateResumePdfController:", error && error.message);
-        console.error("   Stack:", error && error.stack);
-        // Distinguish DB CastError (bad id) from real failures
         if (error && error.name === 'CastError') {
-            return res.status(404).json({ message: "Interview report not found" })
+            return res.status(404).json({ message: "Interview report not found" });
         }
         res.status(500).json({
             message: "Failed to generate resume PDF",
@@ -195,4 +214,94 @@ async function generateResumePdfController(req, res) {
         });
     }
 }
-module.exports = { generateInterviewReportController, getInterviewReportByIdController, getAllInterviewReportsController, generateResumePdfController }
+
+/**
+ * @description Controller to delete an interview report by interviewId.
+ */
+async function deleteInterviewReportController(req, res) {
+    try {
+        const { interviewId } = req.params;
+
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            });
+        }
+
+        const userId = req.user?.id || req.user?._id;
+        const deletedReport = await interviewReportModel.findOneAndDelete({
+            _id: interviewId,
+            user: new mongoose.Types.ObjectId(userId)
+        });
+
+        if (!deletedReport) {
+            return res.status(404).json({
+                message: "Interview report not found or unauthorized."
+            });
+        }
+
+        res.status(200).json({
+            message: "Interview report deleted successfully",
+            deletedId: interviewId
+        });
+    } catch (error) {
+        console.error("Error in deleteInterviewReportController:", error);
+        res.status(500).json({
+            message: "Failed to delete interview report",
+            error: error.message
+        });
+    }
+}
+
+/**
+ * @description Controller to get parsed ATS structured resume data and ATS score breakdown
+ */
+async function getAtsResumeDataController(req, res) {
+    try {
+        const { interviewReportId } = req.params;
+
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is temporarily unavailable. Please try again in a moment."
+            });
+        }
+
+        const userId = req.user?.id || req.user?._id;
+        const interviewReport = await interviewReportModel.findOne({
+            _id: interviewReportId,
+            user: new mongoose.Types.ObjectId(userId)
+        });
+
+        if (!interviewReport) {
+            return res.status(404).json({
+                message: "Interview report not found or unauthorized"
+            });
+        }
+
+        const { resume, jobDescription, selfDescription } = interviewReport;
+        const resumeData = await getStructuredResumeData({ resume, jobDescription, selfDescription });
+        const atsEvaluation = calculateAtsScore({ resumeData, jobDescription });
+
+        res.status(200).json({
+            message: "ATS resume data retrieved successfully",
+            resumeData,
+            atsScore: atsEvaluation.totalScore,
+            atsBreakdown: atsEvaluation.breakdown
+        });
+    } catch (error) {
+        console.error("Error in getAtsResumeDataController:", error);
+        res.status(500).json({
+            message: "Failed to retrieve ATS resume data",
+            error: error.message
+        });
+    }
+}
+
+module.exports = {
+    generateInterviewReportController,
+    getInterviewReportByIdController,
+    getAllInterviewReportsController,
+    generateResumePdfController,
+    deleteInterviewReportController,
+    getAtsResumeDataController
+};

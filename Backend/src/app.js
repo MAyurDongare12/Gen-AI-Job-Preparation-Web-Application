@@ -24,7 +24,8 @@ app.use(cors({
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true
+    credentials: true,
+    exposedHeaders: ['Content-Disposition']
 }));
 /* require all the routes here */
 const authRouter = require('./routes/auth.routes');

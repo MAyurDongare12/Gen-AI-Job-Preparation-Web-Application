@@ -10,12 +10,27 @@ const jwt = require('jsonwebtoken');
  */
 async function registerUserController(req, res) {
     try {
-        const { username, email, password } = req.body;
+        let { username, email, password } = req.body;
 
         if (!username || !email || !password) {
             return res.status(400).json({
                 message: "Please provide username, email and password"
-            })
+            });
+        }
+
+        username = username.trim();
+        email = email.toLowerCase().trim();
+
+        if (username.length < 3) {
+            return res.status(400).json({
+                message: "Username must be at least 3 characters long"
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                message: "Password must be at least 6 characters long"
+            });
         }
 
         // Pre-flight: make sure env vars are set
@@ -23,38 +38,38 @@ async function registerUserController(req, res) {
             console.error('JWT_SECRET is not set in environment');
             return res.status(500).json({
                 message: "Server misconfiguration: JWT_SECRET is missing"
-            })
+            });
         }
 
         // Pre-flight: database must be connected
-        const mongoose = require('mongoose')
+        const mongoose = require('mongoose');
         if (mongoose.connection.readyState !== 1) {
-            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState)
+            console.error('MongoDB not connected. readyState:', mongoose.connection.readyState);
             return res.status(503).json({
                 message: "Database is temporarily unavailable. Please try again in a moment."
-            })
+            });
         }
 
-        const isUserAlredyExists = await userModel.findOne({
+        const isUserAlreadyExists = await userModel.findOne({
             $or: [
                 { username },
                 { email }
             ]
-        })
+        });
 
-        if (isUserAlredyExists) {
+        if (isUserAlreadyExists) {
             return res.status(400).json({
-                message: "Account with this username or email already exists"
-            })
+                message: "An account with this username or email already exists"
+            });
         }
 
-        const hash = await bcrypt.hash(password, 10)
+        const hash = await bcrypt.hash(password, 10);
 
         const user = await userModel.create({
             username,
             email,
             password: hash
-        })
+        });
 
         const token = jwt.sign({
             id: user._id.toString(),
@@ -62,27 +77,27 @@ async function registerUserController(req, res) {
         },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
-        )
+        );
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: true, // Required for cross-site cookies
-            sameSite: 'none', // Required for cross-site cookies
+            secure: true,
+            sameSite: 'none',
             maxAge: 24 * 60 * 60 * 1000 // 1 day
-        })
+        });
+
         res.status(201).json({
             message: "User registered successfully",
+            token,
             user: {
                 id: user._id,
                 username: user.username,
                 email: user.email
             }
-        })
+        });
     } catch (error) {
         console.error('❌ Error in registerUserController:', error);
-        console.error('   Stack:', error && error.stack);
-        // Mongoose validation errors → 400, everything else → 500
-        const status = error && error.name === 'ValidationError' ? 400 : 500
+        const status = error && error.name === 'ValidationError' ? 400 : 500;
         res.status(status).json({
             message: error && error.name === 'ValidationError'
                 ? error.message
@@ -97,34 +112,39 @@ async function registerUserController(req, res) {
  * @description Login a user, expects email and password in the request body
  * @access Public
  */
-
 async function loginUserController(req, res) {
     try {
-        const { email, password } = req.body;
+        let { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({
+                message: "Please provide both email and password"
+            });
+        }
+
+        email = email.toLowerCase().trim();
 
         // Pre-flight: database must be connected
-        const mongoose = require('mongoose')
+        const mongoose = require('mongoose');
         if (mongoose.connection.readyState !== 1) {
             return res.status(503).json({
                 message: "Database is temporarily unavailable. Please try again in a moment."
-            })
+            });
         }
 
-        const user = await userModel.findOne({
-            email
-        })
+        const user = await userModel.findOne({ email });
 
         if (!user) {
             return res.status(400).json({
                 message: "Invalid email or password"
-            })
+            });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password)
+        const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             return res.status(400).json({
                 message: "Invalid email or password"
-            })
+            });
         }
 
         const token = jwt.sign({
@@ -133,22 +153,24 @@ async function loginUserController(req, res) {
         },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
-        )
+        );
 
         res.cookie('token', token, {
             httpOnly: true,
             secure: true,
             sameSite: 'none',
             maxAge: 24 * 60 * 60 * 1000 // 1 day
-        })
+        });
+
         res.status(200).json({
             message: "User logged in successfully",
+            token,
             user: {
                 id: user._id,
                 username: user.username,
                 email: user.email
             }
-        })
+        });
     } catch (error) {
         console.error('Error in loginUserController:', error);
         res.status(500).json({
@@ -160,26 +182,35 @@ async function loginUserController(req, res) {
 
 /**
  * @name logoutUserController
- * @description Logout a user by blacklisting the token in the cookie
+ * @description Logout a user by blacklisting the token in the cookie or header
  * @access Public
  */
 async function logoutUserController(req, res) {
     try {
-        const token = req.cookies.token;
+        let token = req.cookies?.token;
+        if (!token && req.headers?.authorization) {
+            const authHeader = req.headers.authorization;
+            token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+        }
 
         if (token) {
-            await tokenBlacklistModel.create({
-                token
-            })
+            try {
+                await tokenBlacklistModel.create({ token });
+            } catch (blacklistErr) {
+                // Ignore if already blacklisted
+                console.warn('Blacklist notice:', blacklistErr.message);
+            }
         }
+
         res.clearCookie('token', {
             httpOnly: true,
             secure: true,
             sameSite: 'none'
         });
+
         res.status(200).json({
             message: "User logged out successfully"
-        })
+        });
     } catch (error) {
         console.error('Error in logoutUserController:', error);
         res.status(500).json({

@@ -1,11 +1,10 @@
-import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf } from "../services/interview.api"
-import { useContext, useEffect } from "react"
-import { InterviewContext } from "../interview.context"
+import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf, deleteInterviewReport, getAtsResumeData } from "../services/interview.api"
+import { useContext, useEffect, useCallback } from "react"
+import { InterviewContext } from "../interview.context.jsx"
 import { useParams } from "react-router"
-
+import { API_URL } from "../../../config.js"
 
 export const useInterview = () => {
-
     const context = useContext(InterviewContext)
     const { interviewId } = useParams()
 
@@ -13,107 +12,186 @@ export const useInterview = () => {
         throw new Error("useInterview must be used within an InterviewProvider")
     }
 
-    const { loading, setLoading, report, setReport, reports, setReports, error, setError } = context
+    const {
+        loading,
+        isGenerating,
+        setIsGenerating,
+        isFetchingReports,
+        setIsFetchingReports,
+        isFetchingReport,
+        setIsFetchingReport,
+        isDownloadingPdf,
+        setIsDownloadingPdf,
+        report,
+        setReport,
+        reports,
+        setReports,
+        error,
+        setError
+    } = context
 
     const generateReport = async ({ jobDescription, selfDescription, resumeFile }) => {
-        setLoading(true)
+        setIsGenerating(true)
+        setError(null)
         let response = null
         try {
             response = await generateInterviewReport({ jobDescription, selfDescription, resumeFile })
             if (response && response.interviewReport) {
                 setReport(response.interviewReport)
+                // Prepend to reports list if loaded
+                setReports(prev => [response.interviewReport, ...prev.filter(r => r._id !== response.interviewReport._id)])
             }
-        } catch (error) {
-            console.error("Failed to generate report:", error)
-            setError(error.response?.data?.message || "Failed to generate interview report")
+        } catch (err) {
+            console.error("Failed to generate report:", err)
+            const msg = err.response?.data?.message || err.message || "Failed to generate interview report"
+            setError(msg)
+            throw new Error(msg)
         } finally {
-            setLoading(false)
+            setIsGenerating(false)
         }
 
         return response?.interviewReport
     }
 
-    const getReportById = async (interviewId) => {
-        setLoading(true)
+    const getReportById = useCallback(async (id) => {
+        const targetId = id || interviewId
+        if (!targetId) return null
+        setIsFetchingReport(true)
+        setError(null)
         let response = null
         try {
-            response = await getInterviewReportById(interviewId)
+            response = await getInterviewReportById(targetId)
             if (response && response.interviewReport) {
                 setReport(response.interviewReport)
             }
-        } catch (error) {
-            console.error("Failed to fetch report by ID:", error)
-            setError(error.response?.data?.message || "Failed to fetch interview report")
+        } catch (err) {
+            console.error("Failed to fetch report by ID:", err)
+            setError(err.response?.data?.message || "Failed to fetch interview report")
+            setReport(null)
         } finally {
-            setLoading(false)
+            setIsFetchingReport(false)
         }
         return response?.interviewReport
-    }
+    }, [interviewId])
 
-    const getReports = async () => {
-        setLoading(true)
+    const getReports = useCallback(async () => {
+        setIsFetchingReports(true)
+        setError(null)
         let response = null
         try {
             response = await getAllInterviewReports()
             if (response && response.interviewReports) {
                 setReports(response.interviewReports)
             }
-        } catch (error) {
-            console.error("Failed to fetch all reports:", error)
-            setError(error.response?.data?.message || "Failed to fetch interview reports")
+        } catch (err) {
+            console.error("Failed to fetch all reports:", err)
+            setError(err.response?.data?.message || "Failed to fetch interview reports")
         } finally {
-            setLoading(false)
+            setIsFetchingReports(false)
         }
 
         return response?.interviewReports
+    }, [])
+
+    const deleteReport = async (id) => {
+        try {
+            await deleteInterviewReport(id)
+            setReports(prev => prev.filter(r => r._id !== id))
+            if (report && report._id === id) {
+                setReport(null)
+            }
+        } catch (err) {
+            console.error("Failed to delete report:", err)
+            const msg = err.response?.data?.message || "Failed to delete report"
+            setError(msg)
+            throw new Error(msg)
+        }
     }
+
+    const getResumePdfUrl = (interviewReportId, inline = false) => {
+        const id = interviewReportId || interviewId;
+        if (!id) return "#";
+        const token = localStorage.getItem("token") || "";
+        const baseUrl = API_URL;
+        return `${baseUrl}/api/interview/resume/pdf/${id}?token=${encodeURIComponent(token)}${inline ? '&view=inline' : ''}`;
+    };
+
+    /**
+     * Native HTTP direct download:
+     * Triggers the download directly from the Express backend via Content-Disposition: attachment.
+     * The browser native download manager receives the server's clean filename (Resume_<Name>_<Title>.pdf)
+     * and downloads it directly, bypassing in-memory JS blobs and completely eliminating the Chrome UUID filename issue!
+     */
+    const triggerDirectDownload = (interviewReportId) => {
+        const id = interviewReportId || interviewId;
+        if (!id) return;
+        const downloadUrl = getResumePdfUrl(id, false);
+
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.src = downloadUrl;
+        document.body.appendChild(iframe);
+
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
+        }, 30000);
+    };
 
     const getResumePdf = async (interviewReportId) => {
-        if (!interviewReportId) {
-            setError("Missing interview id for resume download")
-            return
+        const id = interviewReportId || interviewId;
+        if (!id) {
+            setError("Missing interview id for resume download");
+            return;
         }
-        if (loading) return // already in flight, ignore re-clicks
-        setLoading(true)
+        if (isDownloadingPdf) return;
+        setIsDownloadingPdf(true);
+        setError(null);
         try {
-            const response = await generateResumePdf({ interviewReportId })
-            console.log("PDF Response:", response, "Type:", response.type)
-
-            // response is already a Blob from axios with responseType: 'blob'
-            if (!response || !(response instanceof Blob)) {
-                throw new Error("Response is not a valid blob")
-            }
-
-            const url = window.URL.createObjectURL(response)
-            const link = document.createElement("a")
-            link.style.display = "none"
-            link.href = url
-            link.download = `resume_${interviewReportId}.pdf`
-            document.body.appendChild(link)
-            link.click()
-
-            // Clean up after browser initiates the download
-            setTimeout(() => {
-                document.body.removeChild(link)
-                window.URL.revokeObjectURL(url)
-            }, 200)
-        }
-        catch (error) {
-            console.error("Failed to download resume PDF:", error)
-            setError(error.response?.data?.message || "Failed to download resume PDF")
+            triggerDirectDownload(id);
+        } catch (err) {
+            console.error("Failed to trigger direct resume download:", err);
+            setError("Failed to download resume PDF");
         } finally {
-            setLoading(false)
+            setTimeout(() => {
+                setIsDownloadingPdf(false);
+            }, 2500);
         }
-    }
+    };
 
-    useEffect(() => {
-        if (interviewId) {
-            getReportById(interviewId)
-        } else {
-            getReports()
+    const fetchAtsResumeData = async (interviewReportId) => {
+        const id = interviewReportId || interviewId;
+        if (!id) return null;
+        try {
+            const data = await getAtsResumeData(id);
+            return data;
+        } catch (err) {
+            console.error("Failed to fetch ATS resume data:", err);
+            return null;
         }
-    }, [interviewId])
+    };
 
-    return { loading, report, reports, error, generateReport, getReportById, getReports, getResumePdf, setError }
-
+    return {
+        loading,
+        isGenerating,
+        isFetchingReports,
+        isFetchingReport,
+        isDownloadingPdf,
+        report,
+        reports,
+        error,
+        generateReport,
+        getReportById,
+        getReports,
+        deleteReport,
+        getResumePdf,
+        getResumePdfUrl,
+        triggerDirectDownload,
+        fetchAtsResumeData,
+        setError,
+        setReport
+    };
 }

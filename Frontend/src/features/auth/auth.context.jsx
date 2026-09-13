@@ -4,21 +4,23 @@ export const AuthContext = createContext()
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
+    const [token, setToken] = useState(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        // Initialize auth state - check if user is already logged in
-        const initializeAuth = async () => {
+        const initializeAuth = () => {
             try {
-                // Check localStorage for user data
                 const storedUser = localStorage.getItem('user')
+                const storedToken = localStorage.getItem('token')
                 if (storedUser && storedUser !== "undefined") {
                     setUser(JSON.parse(storedUser))
+                }
+                if (storedToken) {
+                    setToken(storedToken)
                 }
             } catch (error) {
                 console.error('Auth initialization error:', error)
             } finally {
-                // Always stop loading after checking
                 setLoading(false)
             }
         }
@@ -27,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     }, [])
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, setLoading }}>
+        <AuthContext.Provider value={{ user, setUser, token, setToken, loading, setLoading }}>
             {children}
         </AuthContext.Provider>
     )
