@@ -28,10 +28,12 @@ const Navbar = () => {
 
     const initial = user?.username ? user.username.charAt(0).toUpperCase() : 'U';
 
+    const isLandingPage = location.pathname === '/';
+
     return (
         <header className="app-navbar">
             <div className="navbar-container">
-                <Link to="/" className="navbar-brand">
+                <Link to={user ? "/dashboard" : "/"} className="navbar-brand">
                     <div className="brand-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
@@ -43,20 +45,55 @@ const Navbar = () => {
                     </div>
                 </Link>
 
-                <nav className="navbar-links">
-                    <Link
-                        to="/"
-                        className={`nav-link ${location.pathname === '/' ? 'nav-link--active' : ''}`}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect width="7" height="9" x="3" y="3" rx="1" />
-                            <rect width="7" height="5" x="14" y="3" rx="1" />
-                            <rect width="7" height="9" x="14" y="12" rx="1" />
-                            <rect width="7" height="5" x="3" y="16" rx="1" />
-                        </svg>
-                        Dashboard
-                    </Link>
-                </nav>
+                {/* Only display workspace tool links when inside the application, NOT on the public landing page */}
+                {!isLandingPage && (
+                    <nav className="navbar-links">
+                        <Link
+                            to="/dashboard"
+                            className={`nav-link ${location.pathname === '/dashboard' ? 'nav-link--active' : ''}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect width="7" height="9" x="3" y="3" rx="1" />
+                                <rect width="7" height="5" x="14" y="3" rx="1" />
+                                <rect width="7" height="9" x="14" y="12" rx="1" />
+                                <rect width="7" height="5" x="3" y="16" rx="1" />
+                            </svg>
+                            Dashboard
+                        </Link>
+
+                        <Link
+                            to="/salary-war-room"
+                            className={`nav-link ${location.pathname === '/salary-war-room' ? 'nav-link--active' : ''}`}
+                        >
+                            <span style={{ fontSize: '0.9rem' }}>💰</span>
+                            Salary War Room
+                        </Link>
+
+                        <Link
+                            to="/company-intelligence"
+                            className={`nav-link ${location.pathname === '/company-intelligence' ? 'nav-link--active' : ''}`}
+                        >
+                            <span style={{ fontSize: '0.9rem' }}>🏢</span>
+                            Company Intel
+                        </Link>
+
+                        <Link
+                            to="/portfolio-auditor"
+                            className={`nav-link ${location.pathname === '/portfolio-auditor' ? 'nav-link--active' : ''}`}
+                        >
+                            <span style={{ fontSize: '0.9rem' }}>🔬</span>
+                            Code Auditor
+                        </Link>
+
+                        <Link
+                            to="/referral-engine"
+                            className={`nav-link ${location.pathname === '/referral-engine' ? 'nav-link--active' : ''}`}
+                        >
+                            <span style={{ fontSize: '0.9rem' }}>🚀</span>
+                            Referral Engine
+                        </Link>
+                    </nav>
+                )}
 
                 <div className="navbar-actions">
                     {user ? (
@@ -93,7 +130,7 @@ const Navbar = () => {
                                     </div>
                                     <div className="dropdown-divider" />
                                     <Link
-                                        to="/"
+                                        to="/dashboard"
                                         className="dropdown-item"
                                         onClick={() => setDropdownOpen(false)}
                                     >

@@ -34,3 +34,5 @@ test_ai.js
 test_pdf.js
 test_upload.js
 last_error.log
+scratch/
+Backend/scratch/

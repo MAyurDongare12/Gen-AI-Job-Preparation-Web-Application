@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
+    "@remotion/player": "^4.0.524",
     "axios": "^1.13.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router": "^7.13.1",
+    "remotion": "^4.0.524",
     "sass": "^1.97.3"
   },
   "devDependencies": {

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import '../style/interview.scss';
 import { useInterview } from '../hooks/useInterview.js';
 import { useNavigate, useParams, Link } from 'react-router';
+import VoiceMockModal from '../components/VoiceMockModal';
+import StarTeleprompterModal from '../components/StarTeleprompterModal';
 
 const NAV_ITEMS = [
     {
@@ -35,7 +37,7 @@ const NAV_ITEMS = [
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-const QuestionCard = ({ item, index, isOpen, toggleOpen }) => {
+const QuestionCard = ({ item, index, isOpen, toggleOpen, isBehavioral, onOpenStar }) => {
     const [copied, setCopied] = useState(false);
 
     const copyToClipboard = (e) => {
@@ -52,6 +54,20 @@ const QuestionCard = ({ item, index, isOpen, toggleOpen }) => {
                 <span className='q-card__index'>Q{index + 1}</span>
                 <p className='q-card__question'>{item.question}</p>
                 <div className='q-card__actions'>
+                    {isBehavioral && (
+                        <button
+                            type='button'
+                            className='star-prompt-action-btn'
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (onOpenStar) onOpenStar(item);
+                            }}
+                            title='Practice answering with STAR Method Teleprompter'
+                        >
+                            <span className='star-sparkle'>⚡</span>
+                            STAR Studio
+                        </button>
+                    )}
                     <button
                         type='button'
                         className='q-card__copy-btn'
@@ -91,6 +107,21 @@ const QuestionCard = ({ item, index, isOpen, toggleOpen }) => {
                         </div>
                         <p>{item.answer}</p>
                     </div>
+
+                    {isBehavioral && (
+                        <div className='star-card-footer'>
+                            <button
+                                type='button'
+                                className='star-card-footer-btn'
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenStar) onOpenStar(item);
+                                }}
+                            >
+                                <span>⚡</span> Practice Live with STAR Teleprompter &amp; Google XYZ Grader
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -134,11 +165,19 @@ const Interview = () => {
     const [openCards, setOpenCards] = useState({ '0': true });
     const [checkedTasks, setCheckedTasks] = useState({});
     const [isAtsModalOpen, setIsAtsModalOpen] = useState(false);
+    const [isVoiceMockOpen, setIsVoiceMockOpen] = useState(false);
+    const [isStarModalOpen, setIsStarModalOpen] = useState(false);
+    const [activeStarQuestion, setActiveStarQuestion] = useState(null);
     const [atsData, setAtsData] = useState(null);
     const [atsScore, setAtsScore] = useState(null);
     const [atsBreakdown, setAtsBreakdown] = useState(null);
     const [isAtsLoading, setIsAtsLoading] = useState(false);
     const [copiedText, setCopiedText] = useState(false);
+
+    const handleOpenStarModal = (qItem) => {
+        setActiveStarQuestion(qItem);
+        setIsStarModalOpen(true);
+    };
 
     const { report, getReportById, isFetchingReport, isDownloadingPdf, getResumePdf, getResumePdfUrl, fetchAtsResumeData, error } = useInterview();
     const { interviewId } = useParams();
@@ -353,6 +392,20 @@ const Interview = () => {
                     </div>
 
                     <div className='nav-footer-action'>
+                        {/* Start AI Voice Mock button */}
+                        <button
+                            type='button'
+                            onClick={() => setIsVoiceMockOpen(true)}
+                            className='voice-mock-nav-btn'
+                            id='nav-voice-mock-btn'
+                            title='Start AI Voice Mock Interview'
+                        >
+                            <span className='nav-mic-icon'>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            </span>
+                            Start AI Voice Mock
+                        </button>
+
                         {/* ATS Scorecard Badge */}
                         <div className='ats-quick-scorecard'>
                             <div className='ats-score-badge'>
@@ -472,6 +525,8 @@ const Interview = () => {
                                         index={i}
                                         isOpen={!!openCards[String(i)]}
                                         toggleOpen={() => toggleCard(String(i))}
+                                        isBehavioral={true}
+                                        onOpenStar={handleOpenStarModal}
                                     />
                                 ))}
                             </div>
@@ -516,6 +571,25 @@ const Interview = () => {
                             <span className='match-score-card__pct'>%</span>
                         </div>
                         <p className='match-score-card__sub'>{getScoreSubtitle(report.matchScore)}</p>
+                    </div>
+
+                    {/* AI Voice Mock Studio Card */}
+                    <div className='voice-studio-sidebar-card'>
+                        <div className='voice-card-header'>
+                            <span className='live-dot-pulse' />
+                            <span className='voice-card-tag'>AI VOICE SIMULATION</span>
+                        </div>
+                        <h4 className='voice-card-title'>Live Voice Mock Studio</h4>
+                        <p className='voice-card-desc'>Simulate real oral interviews with FAANG Bar Raiser personas & live filler-word analytics.</p>
+                        <button
+                            type='button'
+                            className='voice-launch-action-btn'
+                            onClick={() => setIsVoiceMockOpen(true)}
+                            id='launch-voice-mock-btn'
+                        >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            Start Voice Mock
+                        </button>
                     </div>
 
                     <div className='sidebar-divider' />
@@ -814,6 +888,22 @@ const Interview = () => {
                     </div>
                 </div>
             )}
+
+            {/* ── AI Voice Mock Interview Studio Modal ── */}
+            <VoiceMockModal
+                isOpen={isVoiceMockOpen}
+                onClose={() => setIsVoiceMockOpen(false)}
+                report={report}
+                interviewId={interviewId}
+            />
+
+            {/* ── STAR Method Teleprompter & Grader Modal ── */}
+            <StarTeleprompterModal
+                isOpen={isStarModalOpen}
+                onClose={() => setIsStarModalOpen(false)}
+                questionItem={activeStarQuestion}
+                targetRole={report?.title}
+            />
         </div>
     );
 };

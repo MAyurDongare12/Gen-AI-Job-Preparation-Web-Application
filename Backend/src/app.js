@@ -15,6 +15,8 @@ app.use(cors({
     origin: (origin, callback) => {
         const allowedOrigins = [
             'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:5175',
             'https://genai-job-preparation-web-app.netlify.app',
             'https://gen-ai-job-preparation-web-application.vercel.app'
         ];

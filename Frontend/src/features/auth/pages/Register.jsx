@@ -41,7 +41,7 @@ function Register() {
                 email: email.trim().toLowerCase(),
                 password
             });
-            navigate("/");
+            navigate("/dashboard");
         } catch (err) {
             setError(err.message || 'Registration failed. Please try again.');
         } finally {
